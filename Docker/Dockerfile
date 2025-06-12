@@ -32,5 +32,5 @@ COPY run.sh /app/run.sh
 RUN chmod +x /app/run.sh
 
 # Set the entrypoint to execute the script
-#ENTRYPOINT ["/app/run.sh"]
-ENTRYPOINT ["/bin/bash"]
+ENTRYPOINT ["/app/run.sh"]
+#ENTRYPOINT ["/bin/bash"]
