@@ -3,7 +3,8 @@ library(data.table)
 library(tidyverse)
 
 ### BRCA1 Ring and BRCT domain depletion scores: https://mavedb.org/score-sets/urn:mavedb:00000081-a-1
-d = fread("Data/urn_mavedb_00000081-a-1_scores.csv") #The depletion score reported here is the number of replicates where the variant was depleted relative to the corresponding control siRNA replicate.
+d = fread("Data/urn_mavedb_00000081-a-1_scores.csv") 
+clin_data = fread("")#The depletion score reported here is the number of replicates where the variant was depleted relative to the corresponding control siRNA replicate.
 
 # Split into WT, Location, and MT
 #Make three columns out of hgvs_pro — first, skip the first 2 letters, then the next three letters in first column (WT), three last letters in second column (MT) and finally, whatever was between WT and MT in a columned named Location

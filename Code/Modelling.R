@@ -109,5 +109,8 @@ ggsave("Results/rmse_distribution_plot.png", width = 8, height = 6)
 # Save the model
 xgb.save(tt$model_true, "Results/boosted_model.xgb")
 
+# Save model to external
+xgb.save(tt$model_true, "Results/boosted_model.xgb")
+
 #Save the list tt
 saveRDS(tt, "Results/boosted_model_results.rds")
