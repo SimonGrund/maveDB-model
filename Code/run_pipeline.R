@@ -31,25 +31,23 @@ source("Code/Load and format data.R")
 message("[2/3] Training model and generating artifacts...")
 source("Code/Modelling.R")
 
-# 3) Render report (HTML + PDF) and copy PDF to Results
-message("[3/3] Rendering report...")
+# 3) Render report (HTML only) and copy HTML to Results
+message("[3/3] Rendering report (HTML)...")
 qmd <- "Report/model_report.qmd"
 if (!requireNamespace("quarto", quietly = TRUE)) {
   message("Quarto not available as an R package; invoking CLI if present...")
 }
 # Prefer CLI for broader compatibility
 qmd_cmd_html <- sprintf("quarto render %s --to html", shQuote(qmd))
-qmd_cmd_pdf  <- sprintf("quarto render %s --to pdf", shQuote(qmd))
 
-# Try rendering via system() calls
+# Try rendering via system() calls (HTML only)
 html_status <- system(qmd_cmd_html)
-pdf_status  <- system(qmd_cmd_pdf)
-if (pdf_status == 0 && file.exists("Report/model_report.pdf")) {
+if (html_status == 0 && file.exists("Report/model_report.html")) {
   dir.create("Results", showWarnings = FALSE)
-  file.copy("Report/model_report.pdf", "Results/model_report.pdf", overwrite = TRUE)
-  message("Report PDF copied to Results/model_report.pdf")
+  file.copy("Report/model_report.html", "Results/model_report.html", overwrite = TRUE)
+  message("Report HTML copied to Results/model_report.html")
 } else {
-  message("PDF render failed or file missing; please ensure Quarto and LaTeX are installed.")
+  message("HTML render failed or file missing; please ensure Quarto is installed.")
 }
 
 message("Pipeline complete.")

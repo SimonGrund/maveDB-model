@@ -1,0 +1,24 @@
+version: "3.8"
+
+services:
+  mavedb-model:
+    build:
+      context: .
+      dockerfile: Docker/Dockerfile
+      # Uncomment to force x86_64 build on Apple Silicon (slower)
+      # platform: linux/amd64
+    image: mavedb-model:latest
+    container_name: mavedb-model
+    working_dir: /app
+    volumes:
+      - ./Results:/app/Results
+      - ./Data:/app/Data
+      - ./tmp:/app/tmp
+    # Use run.sh as entrypoint; args can be provided/mapped by upstream
+    entrypoint: ["/app/run.sh"]
+    # Default args (override via `docker compose run mavedb-model <clin> <depmap>` or another service)
+    command:
+      [
+        "Data/clin_data.csv",
+        "Data/depmap_export_2025-11-26 09_50_16.184205_subsetted.csv",
+      ]

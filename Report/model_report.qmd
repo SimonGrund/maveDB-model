@@ -6,10 +6,6 @@ format:
   html:
     toc: true
     theme: cosmo
-  pdf:
-    toc: true
-    documentclass: article
-    number-sections: true
 execute:
   echo: false
   warning: false
