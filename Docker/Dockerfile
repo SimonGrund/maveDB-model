@@ -20,13 +20,24 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copy the R script to the container
-COPY Code/*.R /app/Code/
+# Copy full project structure needed for pipeline and report
+COPY Code /app/Code
+COPY Report /app/Report
+COPY Results /app/Results
+COPY tmp /app/tmp
+COPY Data /app/Data
+COPY run.sh /app/run.sh
+COPY README.md /app/README.md
 
 # Install packages
 RUN Rscript Code/Install_packages.R
 
-# Copy the R script to the container
-COPY run.sh /app/run.sh
+# Ensure Quarto CLI available for report rendering (optional)
+# Uncomment to install Quarto in the image if needed
+# RUN apt-get update && apt-get install -y wget && \
+#     wget https://quarto.org/download/latest/quarto-linux-amd64.deb -O /tmp/quarto.deb && \
+#     apt-get install -y /tmp/quarto.deb && \
+#     rm /tmp/quarto.deb && rm -rf /var/lib/apt/lists/*
 
 # Make the script executable
 RUN chmod +x /app/run.sh
