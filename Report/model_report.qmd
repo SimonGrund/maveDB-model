@@ -1,0 +1,166 @@
+---
+title: "XGBoost Model Performance Summary"
+author: "Automated Report"
+date: "`r format(Sys.Date())`"
+format:
+  html:
+    toc: true
+    theme: cosmo
+  pdf:
+    toc: true
+    documentclass: article
+    number-sections: true
+execute:
+  echo: false
+  warning: false
+  message: false
+params:
+  rerun: false
+---
+
+```{r setup}
+library(knitr)
+library(readr)
+library(data.table)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(kableExtra)
+# Resolve project root and Results directory robustly
+project_root <- normalizePath("..", mustWork = FALSE)
+results_dir <- "Results"
+if (!dir.exists(results_dir)) {
+  # Try parent Results when rendering from Report/
+  if (dir.exists(file.path(project_root, "Results"))) {
+    results_dir <- file.path(project_root, "Results")
+  }
+}
+# If params$rerun is TRUE, re-run the modelling script to refresh artifacts
+if (isTRUE(params$rerun)) {
+  message("Re-running modelling script...")
+  # Ensure sourcing from project root
+  if (file.exists(file.path(project_root, "Code/Modelling.R"))) {
+    owd <- getwd(); setwd(project_root)
+    on.exit(setwd(owd), add = TRUE)
+    source("Code/Modelling.R")
+  } else if (file.exists("Code/Modelling.R")) {
+    source("Code/Modelling.R")
+  } else {
+    stop("Could not locate Code/Modelling.R for rerun.")
+  }
+} else {
+  message("Using existing artifacts. Set params: rerun: true to regenerate.")
+}
+metrics_path <- file.path(results_dir, "metrics_test.csv")
+imp_path <- file.path(results_dir, "feature_importance_gain.csv")
+rmse_rand_path <- file.path(results_dir, "rmse_random_values.csv")
+if (!file.exists(metrics_path) || !file.exists(imp_path) || !file.exists(rmse_rand_path)) {
+  stop(sprintf("Missing artifacts in '%s'. Expected files: metrics_test.csv, feature_importance_gain.csv, rmse_random_values.csv", results_dir))
+}
+metrics <- data.table::fread(metrics_path)
+imp <- data.table::fread(imp_path)
+rmse_random <- data.table::fread(rmse_rand_path)
+# Compute additional derived statistics
+z_score <- (metrics$rmse_random_mean - metrics$rmse_test) / metrics$rmse_random_sd
+approx_p <- 1 - pnorm(z_score)  # one-sided p (model better than random)
+metrics$z_score <- z_score
+metrics$approx_p_value <- approx_p
+```
+
+# Overview
+
+This report summarizes the performance of the current XGBoost regression model trained on the formatted feature matrix with the outcome scaled to the range [-1, 1].
+
+```{r echo=FALSE}
+metrics_display <- metrics %>% 
+  select(rmse_test, rmse_random_mean, rmse_random_sd, improvement, z_score, approx_p_value, mae_test, r2_test, spearman_test)
+# Pivot to a narrow, two-column table to avoid wide PDF tables
+metrics_long <- metrics_display %>% 
+  pivot_longer(cols = everything(), names_to = "Metric", values_to = "Value") %>% 
+  mutate(Value = signif(Value, 4))
+
+tbl <- knitr::kable(metrics_long, caption = "Model vs. Shuffled Baseline Metrics", align = c('l','r'))
+if (knitr::is_latex_output()) {
+  tbl <- tbl %>% kableExtra::kable_styling(latex_options = c("hold_position")) %>%
+    kableExtra::column_spec(1, width = "8cm") %>%
+    kableExtra::column_spec(2, width = "5cm")
+} else {
+  tbl <- tbl %>% kableExtra::kable_styling(full_width = FALSE)
+}
+tbl
+```
+
+## Interpretation
+
+Compared to a random shuffle of the training labels (null baseline), the model achieved:
+
+- Test RMSE: **`r sprintf('%.4f', metrics$rmse_test)`**
+- Mean shuffled RMSE: **`r sprintf('%.4f', metrics$rmse_random_mean)`** (SD **`r sprintf('%.4f', metrics$rmse_random_sd)`**)
+- Absolute improvement (lower RMSE vs. shuffled mean): **`r sprintf('%.4f', metrics$improvement)`**
+- Approximate z-score (improvement / SD of shuffled RMSEs): **`r sprintf('%.2f', metrics$z_score)`**
+- Approximate one-sided p-value: **`r sprintf('%.3g', metrics$approx_p_value)`** (probability a random model is at least this good under a normal approximation)
+
+The positive improvement and low RMSE relative to the shuffled baseline indicate the model captures signal beyond chance, though the modest z-score suggests the margin is limited and further optimization or feature engineering could be beneficial.
+
+R-squared is **`r sprintf('%.3f', metrics$r2_test)`** (can be negative for models worse than the mean baseline under scaling). Spearman correlation **`r sprintf('%.3f', metrics$spearman_test)`** provides a rank-based agreement measure.
+
+## Feature Importance (Gain)
+
+The top features by XGBoost gain demonstrate which predictors most contributed to reducing loss across splits.
+
+```{r echo=FALSE}
+head_imp <- imp %>% slice_head(n = 15) %>% mutate(Feature = factor(Feature, levels = rev(Feature)))
+plt_imp <- ggplot(head_imp, aes(x = Feature, y = Gain)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top 15 Features (Gain)", x = "Feature", y = "Gain") +
+  theme_minimal()
+print(plt_imp)
+```
+
+A full CSV of importance values is saved at `Results/feature_importance_gain.csv`.
+
+## Diagnostic Figures
+
+### Predicted vs. True
+
+```{r echo=FALSE, fig.cap='Predicted vs True (Test Set)'}
+if (file.exists(file.path(results_dir, 'pred_vs_true_test.pdf'))) {
+  knitr::include_graphics(file.path(results_dir, 'pred_vs_true_test.pdf'))
+} else {
+  cat('Figure not found (pred_vs_true_test.pdf).')
+}
+```
+
+### Shuffled RMSE Distribution
+
+```{r echo=FALSE, fig.cap='RMSE Distribution for Shuffled-Label Models'}
+if (file.exists(file.path(results_dir, 'rmse_random_distribution.pdf'))) {
+  knitr::include_graphics(file.path(results_dir, 'rmse_random_distribution.pdf'))
+} else {
+  cat('Figure not found (rmse_random_distribution.pdf).')
+}
+```
+
+### Feature Importance Top 30
+
+```{r echo=FALSE, fig.cap='Top 30 Feature Importances (Gain)'}
+if (file.exists(file.path(results_dir, 'feature_importance_top30.pdf'))) {
+  knitr::include_graphics(file.path(results_dir, 'feature_importance_top30.pdf'))
+} else {
+  cat('Figure not found (feature_importance_top30.pdf).')
+}
+```
+
+## Recommendations
+
+1. Explore narrower tuning around best hyperparameters (e.g., eta and max_depth) to attempt incremental gains.
+2. Consider feature grouping or dimensionality reduction (e.g., PCA, pathway aggregation) to amplify signal.
+3. Evaluate alternative gradient boosting libraries (LightGBM, CatBoost) for potential performance improvements.
+4. Investigate calibration (e.g., isotonic regression) if prediction distribution needs smoothing.
+
+## Session Info
+
+```{r}
+sessionInfo()
+```
