@@ -95,9 +95,11 @@ if (!all(keep_idx)) {
 cat(sprintf("Dims before NZV: X_train=%d x %d, y_train=%d, X_test=%d x %d\n",
             nrow(X_train), ncol(X_train), length(y_train), nrow(X_test), ncol(X_test)))
 
-# Remove near-zero variance predictors to speed up training
-nzv <- caret::nearZeroVar(X_train)
+# Remove near-zero variance predictors (more aggressive filtering)
+# Increase freqCut and decrease uniqueCut to drop more almost-constant features
+nzv <- caret::nearZeroVar(X_train, freqCut = 99/1, uniqueCut = 2)
 if (length(nzv) > 0) {
+  cat(sprintf("NZV removed: %d predictors\n", length(nzv)))
   X_train <- X_train[, -nzv, drop = FALSE]
   X_test  <- X_test[, -nzv, drop = FALSE]
 }
@@ -105,23 +107,31 @@ if (length(nzv) > 0) {
 cat(sprintf("Dims after NZV: X_train=%d x %d, y_train=%d, X_test=%d x %d\n",
             nrow(X_train), ncol(X_train), length(y_train), nrow(X_test), ncol(X_test)))
 
+# Apply variance filter before training (drop bottom 30% variance)
+var_train <- apply(X_train, 2, var, na.rm = TRUE)
+threshold_var <- quantile(var_train, 0.30)
+keep_var <- which(var_train > threshold_var)
+X_train <- X_train[, keep_var, drop = FALSE]
+X_test  <- X_test[, keep_var, drop = FALSE]
+cat(sprintf("Dims after variance filter (30%% low removed): X_train=%d x %d, X_test=%d x %d\n",
+            nrow(X_train), ncol(X_train), nrow(X_test), ncol(X_test)))
+
 # Caret training with a compact grid and repeated CV
 tr_ctrl <- caret::trainControl(
-  method = "repeatedcv",
-  number = 5,
-  repeats = 1,
+  method = "cv",
+  number = 3,
   verboseIter = FALSE,
   allowParallel = TRUE
 )
 
 grid <- expand.grid(
-  nrounds = c(300, 600),            # allow more trees for lower eta
-  max_depth = c(3, 4, 6),           # shallower trees for regularization
-  eta = c(0.01, 0.03, 0.05, 0.1),   # stronger shrinkage options
-  gamma = c(0, 0.5, 1),             # min loss reduction for split
-  colsample_bytree = c(0.6, 0.8),   # feature subsampling
-  min_child_weight = c(3, 5, 7),    # discourage overly specific splits
-  subsample = c(0.6, 0.8)           # row subsampling
+  nrounds = c(200, 400),
+  max_depth = c(3, 4),
+  eta = c(0.05, 0.1),
+  gamma = c(0, 1),
+  colsample_bytree = c(0.8),
+  min_child_weight = c(5),
+  subsample = c(0.8)
 )
 
 message("Training XGBoost model with cross-validation...")
@@ -148,7 +158,7 @@ cat(sprintf("Test R2: %.4f\n", r2_test))
 cat(sprintf("Test Spearman: %.4f\n", spearman))
 
 # Shuffle-baseline: train with shuffled y_train, evaluate on true y_test
-n_random <- 100
+n_random <- 10
 best <- fit$bestTune
 
 params_best <- list(
@@ -189,13 +199,6 @@ fwrite(imp_df, file = "Results/feature_importance_gain.csv")
 
 # Plot top 30 important features
 top_n <- 30
-var_train <- apply(X_train, 2, var, na.rm = TRUE)
-threshold_var <- quantile(var_train, 0.30)
-keep_var <- which(var_train > threshold_var)
-X_train <- X_train[, keep_var, drop = FALSE]
-X_test  <- X_test[, keep_var, drop = FALSE]
-cat(sprintf("Dims after variance filter (30%% low removed): X_train=%d x %d, X_test=%d x %d\n",
-            nrow(X_train), ncol(X_train), nrow(X_test), ncol(X_test)))
 imp_plot_df <- imp_df %>% dplyr::slice(seq_len(min(nrow(imp_df), top_n))) %>%
   dplyr::mutate(Feature = factor(Feature, levels = rev(Feature)))
 
