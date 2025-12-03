@@ -97,7 +97,7 @@ cat(sprintf("Dims before NZV: X_train=%d x %d, y_train=%d, X_test=%d x %d\n",
 
 # Remove near-zero variance predictors (more aggressive filtering)
 # Increase freqCut and decrease uniqueCut to drop more almost-constant features
-nzv <- caret::nearZeroVar(X_train, freqCut = 99/1, uniqueCut = 2)
+nzv <- caret::nearZeroVar(X_train, freqCut = 300, uniqueCut = 1)
 if (length(nzv) > 0) {
   cat(sprintf("NZV removed: %d predictors\n", length(nzv)))
   X_train <- X_train[, -nzv, drop = FALSE]
