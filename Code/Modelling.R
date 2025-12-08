@@ -17,6 +17,8 @@ if (!is.na(available_cores) && available_cores > 1) {
   message("Parallel not enabled: single-core or detection failed")
 }
 
+RhpcBLASctl::blas_set_num_threads(8)
+
 # Load latest data
 df <- fread("tmp/LATEST_formatted_data.tsv")
 
@@ -120,12 +122,12 @@ cat(sprintf("Dims after variance filter (30%% low removed): X_train=%d x %d, X_t
 tr_ctrl <- caret::trainControl(
   method = "cv",
   number = 3,
-  verboseIter = FALSE,
+  verboseIter = TRUE,
   allowParallel = TRUE
 )
 
 grid <- expand.grid(
-  nrounds = c(200, 400),
+  nrounds = c(50, 100),
   max_depth = c(3, 4),
   eta = c(0.05, 0.1),
   gamma = c(0, 1),
@@ -135,6 +137,7 @@ grid <- expand.grid(
 )
 
 message("Training XGBoost model with cross-validation...")
+message("Updated...")
 fit <- caret::train(
   x = as.data.frame(X_train),
   y = y_train,
@@ -144,6 +147,7 @@ fit <- caret::train(
   metric = "RMSE",
   nthread = available_cores
 )
+message("Fitted...")
 
 # Evaluate on test set
 pred_test <- predict(fit, newdata = as.data.frame(X_test))
@@ -194,8 +198,8 @@ final_booster <- fit$finalModel
 imp <- xgb.importance(model = final_booster, feature_names = colnames(X_train))
 imp_df <- as.data.frame(imp)
 
-dir.create("Results", showWarnings = FALSE)
-fwrite(imp_df, file = "Results/feature_importance_gain.csv")
+dir.create(result_dir, showWarnings = FALSE)
+fwrite(imp_df, file = paste0(result_dir, "/feature_importance_gain.csv"))
 
 # Plot top 30 important features
 top_n <- 30
@@ -207,7 +211,7 @@ ggplot(imp_plot_df, aes(x = Feature, y = Gain)) +
   coord_flip() +
   labs(title = "Top Feature Importances (Gain)", x = "Feature", y = "Gain") +
   ggpubr::theme_classic2()
-ggsave("Results/feature_importance_top30.pdf", width = 8, height = 10)
+ggsave(paste0(result_dir, "/feature_importance_top30.pdf"), width = 8, height = 10)
 
 # Predictions vs True (test set)
 ggplot(data.frame(True = y_test, Predicted = pred_test), aes(x = True, y = Predicted)) +
@@ -215,7 +219,7 @@ ggplot(data.frame(True = y_test, Predicted = pred_test), aes(x = True, y = Predi
   geom_smooth(method = "lm", se = FALSE, color = "red") +
   labs(title = "Predicted vs True (Test)", x = "True score", y = "Predicted score") +
   ggpubr::theme_classic2()
-ggsave("Results/pred_vs_true_test.pdf", width = 7, height = 6)
+ggsave(paste0(result_dir, "/pred_vs_true_test.pdf"), width = 7, height = 6)
 
 # RMSE distribution for shuffled baseline
 ggplot(data.frame(RMSE = rmse_random), aes(x = RMSE)) +
@@ -223,11 +227,11 @@ ggplot(data.frame(RMSE = rmse_random), aes(x = RMSE)) +
   geom_vline(xintercept = rmse_test, color = "red", linetype = "dashed") +
   labs(title = "RMSE on Shuffled-Label Models (Test)", x = "RMSE", y = "Count") +
   ggpubr::theme_classic2()
-ggsave("Results/rmse_random_distribution.pdf", width = 7, height = 6)
+ggsave(paste0(result_dir, "/rmse_random_distribution.pdf"), width = 7, height = 6)
 
 # Save model artifacts and metrics
-saveRDS(fit, file = "Results/xgb_caret_model.rds")
-try({ xgb.save(final_booster, fname = "Results/xgb_booster.model") }, silent = TRUE)
+saveRDS(fit, file = paste0(result_dir, "/xgb_caret_model.rds"))
+try({ xgb.save(final_booster, fname = paste0(result_dir, "/xgb_booster.model")) }, silent = TRUE)
 
 metrics <- data.frame(
   rmse_test = rmse_test,
@@ -238,8 +242,8 @@ metrics <- data.frame(
   rmse_random_sd = sd(rmse_random),
   improvement = improvement
 )
-fwrite(metrics, file = "Results/metrics_test.csv")
-fwrite(data.table(rmse_random = rmse_random), file = "Results/rmse_random_values.csv")
+fwrite(metrics, file = paste0(result_dir, "/metrics_test.csv"))
+fwrite(data.table(rmse_random = rmse_random), file = paste0(result_dir, "/rmse_random_values.csv"))
 
 message("Done. Artifacts saved in Results/")
 

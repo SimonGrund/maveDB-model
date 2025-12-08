@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     libjpeg-dev \
 	cmake \
     wget \
+	gnupg \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Set the working directory
@@ -29,6 +31,24 @@ COPY tmp /app/tmp
 COPY Data /app/Data
 COPY run.sh /app/run.sh
 COPY README.md /app/README.md
+
+# Add Intel oneAPI repository
+RUN wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor \
+    | tee /usr/share/keyrings/oneapi-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] \
+    https://apt.repos.intel.com/oneapi all main" \
+    > /etc/apt/sources.list.d/oneAPI.list
+
+# Install MKL
+RUN apt-get update && apt-get install -y intel-oneapi-mkl intel-oneapi-mkl-devel
+
+# Tell R to use MKL
+ENV LD_LIBRARY_PATH=/opt/intel/oneapi/mkl/latest/lib/intel64:$LD_LIBRARY_PATH
+ENV LD_PRELOAD=/opt/intel/oneapi/mkl/latest/lib/intel64/libmkl_rt.so
+
+ENV MKL_NUM_THREADS=8
+ENV OMP_NUM_THREADS=8
+ENV MKL_DYNAMIC=false
 
 # Install packages
 RUN Rscript Code/Install_packages.R

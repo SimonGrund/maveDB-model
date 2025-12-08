@@ -3,6 +3,7 @@ required_packages <- c(
   "data.table",
   "tidyverse",     # includes dplyr, tidyr, readr, ggplot2, etc.
   "xgboost",
+  "RhpcBLASctl",
   "caret",
   "ggpubr",
   "doParallel",    # parallel backend for caret/xgboost

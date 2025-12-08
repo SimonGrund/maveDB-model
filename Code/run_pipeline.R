@@ -13,15 +13,13 @@ suppressPackageStartupMessages({
 })
 
 args <- commandArgs(trailingOnly = TRUE)
-clin_path <- if (length(args) >= 1) args[1] else "Data/clin_data.csv"
-depmap_path <- if (length(args) >= 2) args[2] else "Data/depmap_export_2025-11-26 09_50_16.184205_subsetted.csv"
+clin_path <- if (length(args) >= 1) args[1]
+depmap_path <- if (length(args) >= 2) args[2]
+result_dir <- if (length(args) >= 3) args[3]
+
 
 message(sprintf("Using clin_data: %s", clin_path))
 message(sprintf("Using depmap export: %s", depmap_path))
-
-# Expose paths to data preparation script via global variables
-assign("CLIN_DATA_PATH", clin_path, envir = .GlobalEnv)
-assign("DEPMAP_EXPORT_PATH", depmap_path, envir = .GlobalEnv)
 
 # 1) Load and format data
 message("[1/3] Running data load and formatting...")
@@ -43,8 +41,8 @@ qmd_cmd_html <- sprintf("quarto render %s --to html", shQuote(qmd))
 # Try rendering via system() calls (HTML only)
 html_status <- system(qmd_cmd_html)
 if (html_status == 0 && file.exists("Report/model_report.html")) {
-  dir.create("Results", showWarnings = FALSE)
-  file.copy("Report/model_report.html", "Results/model_report.html", overwrite = TRUE)
+  dir.create(result_dir, showWarnings = FALSE)
+  file.copy("Report/model_report.html", paste0(result_dir, "/model_report.html"), overwrite = TRUE)
   message("Report HTML copied to Results/model_report.html")
 } else {
   message("HTML render failed or file missing; please ensure Quarto is installed.")
