@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -x
+
+shopt -s nullglob
 
 # Base folders
 INPUT_ROOT="/app/Shared/Input"
@@ -11,7 +13,10 @@ DEPMAP_FILE_NAME="depmap.csv"
 
 # Infinite loop
 while true; do
-  for dir in "$INPUT_ROOT"/*/; do
+
+  echo "Loop running..."
+
+  for dir in "$INPUT_ROOT"/*; do
     # Skip if not a directory
     [ -d "$dir" ] || continue
 
@@ -32,13 +37,10 @@ while true; do
       continue
     fi
 
-    # Create output directory
-    mkdir -p "$OUTPUT_DIR"
-
     echo "Processing $SUBDIR_NAME..."
-    exec Rscript Code/run_pipeline.R "$CLINICAL_FILE" "$DEPMAP_FILE" "$OUTPUT_DIR"
+    Rscript Code/run_pipeline.R "$CLINICAL_FILE" "$DEPMAP_FILE" "$OUTPUT_DIR"
 
-	rm "$dir"/*
+	rm -f "$dir"/*
 	rmdir "$dir"
 
   done
@@ -46,5 +48,7 @@ while true; do
   # Wait before next scan
   sleep 5
 done
+
+echo "Loop ended"
 
 
